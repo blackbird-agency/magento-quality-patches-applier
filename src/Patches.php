@@ -151,12 +151,19 @@ class Patches implements PluginInterface, EventSubscriberInterface
             if (!empty($patchesToRemove)) {
                 $this->io->write(sprintf("<comment>Reverting the %d magento quality patches already applied</comment>", count($patchesToRemove)));
                 $resultCode = $this->executor->execute(sprintf("%s revert --all", escapeshellarg($this->getMagentoPatchesCliPath())), $output);
+                $message = $output;
+                if(is_array($output)){
+                    $message = implode("\n", $output ?? []);
+                }
+                if(!empty($message)){
+                    $message = "Command output : " . $message;
+                }
                 if ($resultCode !== 0) {
-                    throw new RuntimeException("error reverting patches : " . implode("\n", $output));
+                    throw new RuntimeException("error reverting patches" . $message);
                 }
             }
         } catch (\Exception $e) {
-            $this->io->write(sprintf("<notice>Warning : %s</notice>", $e->getMessage()));
+            $this->io->write(sprintf("<warning>Warning : %s</warning>", $e->getMessage()));
         }
     }
 
@@ -171,7 +178,14 @@ class Patches implements PluginInterface, EventSubscriberInterface
         $resultCode = $this->executor->execute(sprintf("%s status -f json", escapeshellarg($this->getMagentoPatchesCliPath())), $output);
 
         if ($resultCode !== 0) {
-            throw new RuntimeException("Error getting patches status : " . implode("\n", $output));
+            $message = $output;
+            if(is_array($output)){
+                $message = implode("\n", $output ?? []);
+            }
+            if(!empty($message)){
+                $message = "Command output : " . $message;
+            }
+            throw new RuntimeException("Unable to retrieve installed magento patches" . $message);
         }
         return \json_decode($output, true, 512, JSON_THROW_ON_ERROR);
     }
