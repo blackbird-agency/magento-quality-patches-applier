@@ -3,7 +3,7 @@
     "description": "A Composer plugin that manages the application of patches from magento/quality-patches",
     "type": "composer-plugin",
     "license": "MIT",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "autoload": {
         "psr-4": {
             "Blackbird\\MagentoQualityPatchesApplier\\": "src/"

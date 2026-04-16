@@ -97,12 +97,17 @@ class Patches implements PluginInterface, EventSubscriberInterface
             }
 
             $patchesToApply = array_unique($patchesToApply);
-
-            $this->io->write(sprintf("<comment>Applying the %d magento quality patches : %s</comment>", count($patchesToApply), implode(" ", $patchesToApply)));
             $patchesArgs = [];
             foreach ($patchesToApply as $patch) {
                 $patchesArgs[] = escapeshellarg($patch);
             }
+            if(empty($patchesArgs)) {
+                $this->io->write("<comment>No patches to apply</comment>");
+                return;
+            }
+
+            $this->io->write(sprintf("<comment>Applying the %d magento quality patches : %s</comment>", count($patchesToApply), implode(" ", $patchesToApply)));
+
 
             $patchesArg = implode(" ", $patchesArgs);
             $command = sprintf("%s apply %s", escapeshellarg($this->getMagentoPatchesCliPath()), $patchesArg);
@@ -118,7 +123,7 @@ class Patches implements PluginInterface, EventSubscriberInterface
             }
 
             if ($resultCode !== 0) {
-                throw new RuntimeException(sprintf("Error applying patches : %s please check errors from output above.", $patchesArgs));
+                throw new RuntimeException(sprintf("Error applying patches : %s please check errors from output above.", $patchesArg));
             }
         } catch (Exception $e) {
             if ($exitOnFailure) {
@@ -159,9 +164,11 @@ class Patches implements PluginInterface, EventSubscriberInterface
                     $message = "Command output : " . $message;
                 }
                 if ($resultCode !== 0) {
-                    throw new RuntimeException("error reverting patches" . $message);
+                    throw new RuntimeException("error reverting patches " . $message);
                 }
             }
+        } catch (RuntimeException $e) {
+            $this->io->write(sprintf("<comment>Unable to retrieve installed magento quality patches, continuing...</comment>", $e->getMessage()));
         } catch (\Exception $e) {
             $this->io->write(sprintf("<warning>Warning : %s</warning>", $e->getMessage()));
         }
@@ -185,7 +192,7 @@ class Patches implements PluginInterface, EventSubscriberInterface
             if(!empty($message)){
                 $message = "Command output : " . $message;
             }
-            throw new RuntimeException("Unable to retrieve installed magento patches" . $message);
+            throw new RuntimeException("Unable to retrieve installed magento patches " . $message);
         }
         return \json_decode($output, true, 512, JSON_THROW_ON_ERROR);
     }
