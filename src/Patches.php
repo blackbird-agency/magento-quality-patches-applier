@@ -85,8 +85,8 @@ class Patches implements PluginInterface, EventSubscriberInterface
             if (array_intersect(["all", "*", "ALL"], $patchesToApply)) {
                 $patchesToApply = [];
                 $data = $this->getStatusJson();
-                foreach ($data as $patch) {
-                    if ($patch["Status"] === "Not applied") {
+		foreach ($data as $patch) {
+	            if ($patch["Status"] === "Not applied" && $patch["Id"] !== "N/A") {
                         $patchesToApply[] = $patch["Id"];
                     }
                 }
