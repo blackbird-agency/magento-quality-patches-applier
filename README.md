@@ -16,6 +16,12 @@ This Composer plugin hooks into install/update commands to automatically revert 
 
 It relies on the magento/quality-patches package binary (vendor/bin/magento-patches) and your composer.json "extra" configuration.
 
+Staying current with monthly patch releases:
+- Magento publishes a new monthly release of Required patches roughly every month (e.g. a "July 2026" release followed by an "August 2026" release).
+- With extra.magento-patches.auto-install-required-patches enabled, you don't need to track or list these new patch IDs yourself: even a simple `composer update magento/magento-cloud-patches` triggers the plugin's revert/apply cycle, which re-reads the current patch status and automatically applies every Required patch it finds "Not applied" — including any newly published ones.
+- This also covers catching up after skipping a release: if your project was still on the July 2026 patch level and you update straight to August 2026, the plugin will apply the outstanding Required patches from both the July and August releases in that same run, not just the latest month, since it re-checks patch status after each apply pass until nothing new is left to apply.
+- Note: this only works if your project is already on the latest Magento patch version (e.g. 2.4.8-p5). Quality/monthly patches target a specific patch level, so if your magento/product-community-edition (or enterprise-edition) constraint is behind the latest p-release, the status command won't report those patches as applicable and they won't be auto-installed until you first upgrade Magento itself to that patch level.
+
 ## Requirements
 
 - PHP >= 7.3
@@ -45,6 +51,7 @@ Example:
 {
   "extra": {
     "magento-patches": {
+      "auto-install-required-patches": true,
       "apply": [
         "AC-1234",
         "MC-5678"
@@ -59,6 +66,14 @@ Example:
 
 Special values for apply:
 - "all", "*", or "ALL" applies all patches that are currently "Not applied" according to the status command.
+
+Auto-installing required patches:
+- Set extra.magento-patches.auto-install-required-patches to true to automatically apply every currently "Not applied" patch whose Details field starts with "Patch type: Required" (as reported by the status command), in addition to whatever is listed in apply.
+- This is independent from apply: patches explicitly listed in apply are always applied regardless of this setting, and patches listed in ignore are always excluded, even if auto-install-required-patches is enabled.
+- Defaults to false (disabled) when not set.
+
+Console output for required patches (dev mode):
+- When Composer runs in dev mode (i.e. not with --no-dev), after a successful application the plugin prints the Title and Details of every applied patch that is of type "Required".
 
 Environment/config flags:
 - Set environment variable COMPOSER_EXIT_ON_MAGENTO_PATCH_FAILURE=1 (or add extra.composer-exit-on-magento-patch-failure: true) to make Composer fail if patch application fails.
