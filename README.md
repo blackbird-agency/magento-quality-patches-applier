@@ -28,6 +28,7 @@ Staying current with monthly patch releases:
 - Composer (Plugin API ^1.0 or ^2.0)
 - magento/quality-patches (this package requires it)
 - A Magento project (the patches are intended for Magento)
+- The `patch` command available on the system PATH (only needed for the m2-hotfixes auto-apply feature)
 
 ## Setup
 
@@ -39,11 +40,13 @@ Composer Package:
 composer require blackbird/magento-quality-patches-applier
 ```
 
-This will also install magento/quality-patches if it is not already present.
+This will also install magento/quality-patches and magento/magento-cloud-patches if it is not already present.
 
 ### Configure patches to apply
 
 In your project composer.json, define the patches you want in the extra.magento-patches.apply section. You can also list patches to ignore.
+
+apply and ignore accept an object, where each key is a free-text comment (e.g. the reason for the patch) and each value is the patch id. A plain array of patch ids (without comments) is also supported, and both forms can be mixed.
 
 Example:
 
@@ -52,13 +55,12 @@ Example:
   "extra": {
     "magento-patches": {
       "auto-install-required-patches": true,
-      "apply": [
-        "AC-1234",
-        "MC-5678"
-      ],
-      "ignore": [
-        "MDVA-99999"
-      ]
+      "apply": {
+        "fix for checkout error": "AEDAZ-xxx"
+      },
+      "ignore": {
+        "it crashes the installation": "ACP2E-xxx"
+      }
     }
   }
 }
@@ -76,7 +78,31 @@ Console output for required patches (dev mode):
 - When Composer runs in dev mode (i.e. not with --no-dev), after a successful application the plugin prints the Title and Details of every applied patch that is of type "Required".
 
 Environment/config flags:
-- Set environment variable COMPOSER_EXIT_ON_MAGENTO_PATCH_FAILURE=1 (or add extra.composer-exit-on-magento-patch-failure: true) to make Composer fail if patch application fails.
+- By default, Composer fails if patch application fails. Set extra.composer-exit-on-magento-patch-failure to false to make Composer continue instead (patch errors are then just printed as warnings).
+- Environment variable COMPOSER_EXIT_ON_MAGENTO_PATCH_FAILURE overrides extra.composer-exit-on-magento-patch-failure (and the default) whenever it is set: use COMPOSER_EXIT_ON_MAGENTO_PATCH_FAILURE=1 to force Composer to fail on patch errors, or COMPOSER_EXIT_ON_MAGENTO_PATCH_FAILURE=0 to disable it.
+
+### Auto-applying m2-hotfixes custom patches
+
+Magento Cloud automatically applies custom patch files placed in the project's `/m2-hotfixes` directory during deployment. This plugin replicates that behavior locally: it applies every `*.patch` file in `/m2-hotfixes`, in alphabetical order by filename, using the system `patch` command directly (no dependency on magento/magento-cloud-patches internals). A patch already applied is detected and skipped instead of erroring.
+
+- extra.magento-patches.auto-install-hotfixes is a tri-state setting:
+  - unset (default): the m2-hotfixes patches are applied automatically, but only when no cloud environment is detected (checking for MAGENTO_CLOUD_* / PLATFORM_* environment variables). This avoids double-applying them, since Magento Cloud already does it during its own deployment.
+  - false: never apply them automatically, even outside of a cloud environment.
+  - true: always apply them, even if a cloud environment is detected.
+- This step always runs after the patches from apply/auto-install-required-patches, matching Magento Cloud's own order (required, then optional, then m2-hotfixes custom patches), and always prints its outcome: what was applied, that no custom patches were found, or why the step was skipped (disabled or cloud detected).
+- Before install/update, any currently-applied m2-hotfixes patch is reverted first (before the other patches are reverted/reapplied), so a leftover custom patch can never conflict with reapplying the quality/cloud patches.
+
+Example:
+
+```
+{
+  "extra": {
+    "magento-patches": {
+      "auto-install-hotfixes": false
+    }
+  }
+}
+```
 
 ### Install / Update
 
@@ -94,6 +120,28 @@ The plugin will:
 
 If you enable verbose Composer output (-vvv), the plugin will display the exact magento-patches commands it executes.
 
+### Security/patch status warnings
+
+If `vendor/bin/patch-status` (Adobe's Monthly Security Release Versioning Tool) is present, the plugin runs it at the end of install/update and prints a warning listing any missing patches or CVEs it reports as not protected, or a confirmation message when there is nothing to report. This check is purely informational: it never fails the build, and is silently skipped if the binary isn't present or the tool itself fails to run (e.g. no network access).
+
+### Updating to the latest patch packages
+
+The plugin registers a `magento-patches:update` Composer command that fetches the latest available version of the patch packages (like `composer show --latest` would) and requires that exact version (using `composer require ... --fixed`), instead of a computed version range.
+
+```
+composer magento-patches:update
+```
+
+By default it only updates `magento/magento-cloud-patches`. Pass a target argument to control which package(s) to update:
+
+```
+composer magento-patches:update cloud    # default, magento/magento-cloud-patches only
+composer magento-patches:update quality  # magento/quality-patches only
+composer magento-patches:update all      # both packages
+```
+
+Note: pinning an exact version this way relies on Composer's `--fixed` require option, which Composer only allows for a root package of "type": "project" (the standard type for a Magento project) or for require-dev packages.
+
 ## How it works
 
 Internally, the plugin subscribes to Composer script events:
@@ -109,7 +157,7 @@ It uses the magento-patches binary to retrieve status (JSON), revert --all, and 
 
 - Patch application fails
   - Re-run with -vvv for details.
-  - Set COMPOSER_EXIT_ON_MAGENTO_PATCH_FAILURE=1 to let Composer stop on failures.
+  - Composer stops on failures by default; set extra.composer-exit-on-magento-patch-failure to false to let it continue instead.
   - Check for local changes conflicting with patches. Consider reverting changes or adjusting ignore/apply lists.
 
 - No patches applied
