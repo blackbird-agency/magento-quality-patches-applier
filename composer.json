@@ -11,7 +11,6 @@
     "minimum-stability": "stable",
     "require": {
         "magento/quality-patches" : "*",
-        "magento/magento-cloud-patches" : "*",
         "php": ">=7.3",
         "composer-plugin-api": "^1.0 || ^2.0"
     },
